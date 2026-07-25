@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LDSaver
 // @namespace    https://linux.do/
-// @version      1.5.3
+// @version      1.6.0
 // @description  linux.do 帖子导出 Markdown / PDF（MD→PDF）、可选原图 ZIP、代码高亮、温和限速
 // @author       albert
 // @icon         https://picui.ogmua.cn/s1/2026/07/24/6a624ed8b0986.webp
@@ -43,6 +43,29 @@
       setTimeout(resolve, ms);
     });
   }
+
+  /* ---------- 终止令牌 ---------- */
+  // 轻量的取消令牌：外部把 token 传给可中止的 job，
+  // job 在关键步骤前 checkAbort(token)；
+  // 用户点击「终止导出」时 abortRun(token) 置位，
+  // 下一个检查点即抛出 aborted=true 的 Error，被顶层 catch 识别。
+  function newRunToken() {
+    return { aborted: false, reason: "" };
+  }
+  function abortRun(token, why) {
+    if (!token || token.aborted) return;
+    token.aborted = true;
+    token.reason = why || "用户终止";
+  }
+  function checkAbort(token) {
+    if (token && token.aborted) {
+      var e = new Error("已终止" + (token.reason ? "：" + token.reason : ""));
+      e.aborted = true;
+      throw e;
+    }
+  }
+  // 模块级：承载当前正在进行的导出任务，供终止按钮操作
+  var currentRun = null;
 
   function jitter(base, j) {
     return base + Math.floor(Math.random() * (j + 1));
@@ -343,10 +366,11 @@
     });
   }
 
-  function mapPool(items, concurrency, worker) {
+  function mapPool(items, concurrency, worker, token) {
     var ret = new Array(items.length);
     var next = 0;
     function runner() {
+      checkAbort(token);
       if (next >= items.length) return Promise.resolve();
       var i = next++;
       return Promise.resolve(worker(items[i], i)).then(function (v) {
@@ -891,7 +915,8 @@
   }
 
   /* ---------- API ---------- */
-  function fetchPostsInRange(topicId, from, to, onProgress) {
+  function fetchPostsInRange(topicId, from, to, onProgress, token) {
+    checkAbort(token);
     return getJSON("/t/" + topicId + ".json").then(function (base) {
       var stream =
         (base.post_stream && base.post_stream.stream) || [];
@@ -910,6 +935,7 @@
       }
 
       function loadBatch(start) {
+        checkAbort(token);
         if (start >= need.length) {
           return Promise.resolve();
         }
@@ -1055,7 +1081,8 @@
     };
   }
 
-  function exportSingleTopic(topicId, opts, ui) {
+  function exportSingleTopic(topicId, opts, ui, token) {
+    checkAbort(token);
     var range = (opts.toFloor || 1) - (opts.fromFloor || 1) + 1;
     uiCall(ui, "log", "导出帖子 " + topicId + "...");
     uiCall(ui, "setStage", "拉取帖子");
@@ -1069,7 +1096,8 @@
       opts.toFloor,
       function (d, t) {
         uiCall(ui, "progress", 0.05 + (0.25 * d) / Math.max(t, 1));
-      }
+      },
+      token
     ).then(function (data) {
       var topic = data.topic;
       var posts = data.posts;
@@ -1113,6 +1141,7 @@
       var pathMap = {};
 
       return mapPool(entries, RATE.imgConcurrency, function (e) {
+        checkAbort(token);
         return fetchBinary(e.url)
           .then(function (res) {
             var name = e.name;
@@ -1164,7 +1193,8 @@
             }
             return result;
           });
-      }).then(function (results) {
+      }, token).then(function (results) {
+        checkAbort(token);
         var md = r.md;
         Object.keys(pathMap).forEach(function (from) {
           var to = pathMap[from];
@@ -1207,46 +1237,73 @@
               );
             }
           }
+          checkAbort(token);
+          // 大体积时 onUpdate 可能数秒无推送，先在日志里说清楚，避免误判为卡死
+          uiCall(
+            ui,
+            "setStage",
+            "打包 ZIP（大体积时可能数秒无进度，属正常，可随时终止）"
+          );
 
           var lastPctLog = -1;
-          return zip
-            .generateAsync(
-              { type: "blob", streamFiles: true },
-              function (meta) {
-                var p = meta.percent || 0;
-                uiCall(ui, "progress", 0.82 + (0.17 * p) / 100);
-                uiCall(ui, "setStage", "打包 ZIP " + p.toFixed(0) + "%");
-                var bucket = Math.floor(p / 10);
-                if (
-                  bucket !== lastPctLog &&
-                  (bucket % 2 === 0 || p >= 99)
-                ) {
-                  lastPctLog = bucket;
-                  uiCall(ui, "log", "打包进度 " + p.toFixed(0) + "%");
-                }
-              }
-            )
-            .then(function (blob) {
-              var zipName = safeName(r.title) + "-" + topic.id + ".zip";
-              downloadBlob(blob, zipName, "application/zip");
-              uiCall(ui, "progress", 1);
-              uiCall(ui, "setStage", "完成");
+          var onUpdateCb = function (meta) {
+            var p = meta.percent || 0;
+            uiCall(ui, "progress", 0.82 + (0.17 * p) / 100);
+            uiCall(ui, "setStage", "打包 ZIP " + p.toFixed(0) + "%");
+            var bucket = Math.floor(p / 10);
+            if (
+              bucket !== lastPctLog &&
+              (bucket % 2 === 0 || p >= 99)
+            ) {
+              lastPctLog = bucket;
+              uiCall(ui, "log", "打包进度 " + p.toFixed(0) + "%");
+            }
+          };
+
+          // 去掉 streamFiles:true（在部分浏览器上 onUpdate 不推进，表现为一直 0%）；
+          // 加 60s 看门狗，超时不强制 reject（后台继续跑），但提示用户可终止。
+          var packJob = zip.generateAsync(
+            { type: "blob" },
+            onUpdateCb
+          );
+          var packTimeoutMs = 60000;
+          var timeoutJob = sleep(packTimeoutMs).then(function () {
+            return { __timeout: true };
+          });
+          return Promise.race([packJob, timeoutJob]).then(function (out) {
+            checkAbort(token);
+            if (out && out.__timeout) {
               uiCall(
                 ui,
                 "log",
-                "✓ 已下载 " +
-                  zipName +
-                  "（" +
-                  posts.length +
-                  " 楼，图 " +
-                  ok +
-                  " 成功 / " +
-                  fail +
-                  " 失败）",
-                "ok"
+                "打包超过 " +
+                  Math.round(packTimeoutMs / 1000) +
+                  "s 仍未完成，可点击「终止」放弃后重试",
+                "warn"
               );
-              return { type: "zip", filename: zipName, images: ok };
-            });
+              return null;
+            }
+            var blob = out;
+            var zipName = safeName(r.title) + "-" + topic.id + ".zip";
+            downloadBlob(blob, zipName, "application/zip");
+            uiCall(ui, "progress", 1);
+            uiCall(ui, "setStage", "完成");
+            uiCall(
+              ui,
+              "log",
+              "✓ 已下载 " +
+                zipName +
+                "（" +
+                posts.length +
+                " 楼，图 " +
+                ok +
+                " 成功 / " +
+                fail +
+                " 失败）",
+              "ok"
+            );
+            return { type: "zip", filename: zipName, images: ok };
+          });
         });
       });
     });
@@ -1473,11 +1530,12 @@
     ".ld-pdf del{color:#57606a}"
   );
 
-  function inlineImages(root, ui) {
+  function inlineImages(root, ui, token) {
     var imgs = Array.prototype.slice.call(root.querySelectorAll("img"));
     var chain = Promise.resolve();
     imgs.forEach(function (img, idx) {
       chain = chain.then(function () {
+        checkAbort(token);
         var src = absUrl(img.getAttribute("src") || "");
         if (!src || src.indexOf("data:") === 0 || isEmoji(src)) return;
         if (idx === 0) uiCall(ui, "log", "内联图片到 PDF...");
@@ -1495,7 +1553,8 @@
     return chain;
   }
 
-  function markdownToPdf(md, filename, ui) {
+  function markdownToPdf(md, filename, ui, token) {
+    checkAbort(token);
     return ensureHtml2Pdf().then(function (h2p) {
       uiCall(ui, "setStage", "Markdown → HTML");
       uiCall(ui, "log", "Markdown → HTML...");
@@ -1521,7 +1580,7 @@
       idoc.close();
       var root = idoc.getElementById("root");
 
-      return inlineImages(root, ui)
+      return inlineImages(root, ui, token)
         .then(function () {
           uiCall(ui, "setStage", "处理图片");
           uiCall(ui, "progress", 0.72);
@@ -1604,7 +1663,8 @@
     });
   }
 
-  function exportCurrentTopicForPDF(topicId, opts, ui) {
+  function exportCurrentTopicForPDF(topicId, opts, ui, token) {
+    checkAbort(token);
     uiCall(ui, "log", "导出帖子 " + topicId + " 为 PDF...");
     uiCall(ui, "setStage", "拉取帖子");
     var range = (opts.toFloor || 1) - (opts.fromFloor || 1) + 1;
@@ -1617,7 +1677,8 @@
       opts.toFloor,
       function (d, t) {
         uiCall(ui, "progress", 0.05 + (0.35 * d) / Math.max(t, 1));
-      }
+      },
+      token
     ).then(function (data) {
       var topic = data.topic;
       var posts = data.posts;
@@ -1637,7 +1698,7 @@
       var filename = safeName(r.title) + "-" + topic.id + ".pdf";
       uiCall(ui, "progress", 0.55);
       uiCall(ui, "setStage", "Markdown → PDF");
-      return markdownToPdf(r.md, filename, ui).then(function (out) {
+      return markdownToPdf(r.md, filename, ui, token).then(function (out) {
         uiCall(ui, "progress", 1);
         uiCall(ui, "setStage", "完成");
         return out;
@@ -1704,6 +1765,9 @@
       ".ld-btn-md{background:#0071e3;color:#fff}.ld-btn-md:hover{background:#0077ed}" +
       ".ld-btn-pdf{background:var(--pdf);color:var(--fg)}.ld-btn-pdf:hover{background:var(--pdfh)}" +
       ".ld-btn:active{transform:scale(.97)}.ld-btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}" +
+      ".ld-stop-wrap{margin-top:10px;display:flex}.ld-stop-wrap[hidden]{display:none}" +
+      ".ld-btn-stop{flex:1;padding:9px 14px;border:0;border-radius:12px;cursor:pointer;font-size:12.5px;font-weight:600;background:#ff3b30;color:#fff;transition:background .15s,transform .12s}" +
+      ".ld-btn-stop:hover{background:#ff453a}.ld-btn-stop:active{transform:scale(.97)}.ld-btn-stop:disabled{opacity:.5;cursor:not-allowed;transform:none!important}" +
       ".ld-progress-wrap{margin-top:14px}" +
       ".ld-progress-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;min-height:16px}" +
       ".ld-progress-stage{font-size:11px;font-weight:500;color:var(--sub);letter-spacing:.2px;display:flex;align-items:center;gap:6px}" +
@@ -1763,6 +1827,7 @@
       '<div class="ld-btns">' +
       '<button class="ld-btn ld-btn-md" id="ld-export-md">导出 Markdown</button>' +
       '<button class="ld-btn ld-btn-pdf" id="ld-export-pdf">导出 PDF</button></div>' +
+      '<div class="ld-stop-wrap" id="ld-stop-wrap" hidden><button class="ld-btn ld-btn-stop" id="ld-export-stop" type="button">终止导出</button></div>' +
       '<div class="ld-progress-wrap" id="ld-progress-wrap">' +
       '<div class="ld-progress-meta">' +
       '<div class="ld-progress-stage"><span class="ld-spin"></span><span id="ld-progress-stage">就绪</span></div>' +
@@ -1987,6 +2052,9 @@
     }
 
     var busy = false;
+    var stopWrap = document.getElementById("ld-stop-wrap");
+    var stopBtn = document.getElementById("ld-export-stop");
+
     function runExport(kind) {
       if (busy) {
         ui.log("已有导出任务进行中", "warn");
@@ -2010,23 +2078,45 @@
       btns[0].disabled = true;
       btns[1].disabled = true;
 
+      // 启用终止按钮
+      var token = newRunToken();
+      currentRun = { token: token };
+      stopBtn.disabled = false;
+      stopBtn.textContent = "终止导出";
+      stopWrap.hidden = false;
+
       var job =
         kind === "md"
-          ? exportSingleTopic(t.topicId, opts, ui)
-          : exportCurrentTopicForPDF(t.topicId, opts, ui);
+          ? exportSingleTopic(t.topicId, opts, ui, token)
+          : exportCurrentTopicForPDF(t.topicId, opts, ui, token);
 
       Promise.resolve(job)
         .catch(function (e) {
-          ui.log("异常: " + (e && e.message ? e.message : e), "error");
-          ui.setStage("失败");
+          if (e && e.aborted) {
+            ui.log("已终止" + (e.message ? "：" + e.message : "") + "，可重新发起导出", "warn");
+            ui.setStage("已终止");
+          } else {
+            ui.log("异常: " + (e && e.message ? e.message : e), "error");
+            ui.setStage("失败");
+          }
         })
         .then(function () {
           busy = false;
+          currentRun = null;
+          stopWrap.hidden = true;
           btns[0].disabled = false;
           btns[1].disabled = false;
           ui.setBusy(false);
         });
     }
+
+    stopBtn.onclick = function () {
+      if (!currentRun) return;
+      abortRun(currentRun.token, "用户主动终止");
+      stopBtn.disabled = true;
+      stopBtn.textContent = "正在终止…";
+      ui.log("收到终止请求，将在下一个检查点停止（正在进行的网络请求无法立即中断）...", "warn");
+    };
 
     document.getElementById("ld-export-md").onclick = function () {
       runExport("md");
@@ -2050,6 +2140,9 @@
     detectLang: detectLang,
     highlight: highlight,
     createImageCollector: createImageCollector,
+    newRunToken: newRunToken,
+    abortRun: abortRun,
+    checkAbort: checkAbort,
     safeName: safeName,
     downloadBlob: downloadBlob,
     RATE: RATE
