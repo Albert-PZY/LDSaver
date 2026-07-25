@@ -1,0 +1,12 @@
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Tooling scratch
+.playwright-mcp/
+
+# Node (if added later)
+node_modules/
