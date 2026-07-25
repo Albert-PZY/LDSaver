@@ -12,19 +12,19 @@ A Tampermonkey / Greasemonkey userscript that exports [linux.do](https://linux.d
 
 > Version: 1.5.3 · Author: albert · Namespace: `https://linux.do/`
 
-## ✨ Features
+## Features
 
-- 📝 **Export to Markdown** — converts forum HTML to clean Markdown (headings, lists, blockquotes, tables, code blocks, links, images, mentions, hashtags, quotes, oneboxes).
-- 📄 **Export to PDF** — renders Markdown → styled HTML → A4 PDF via `html2pdf.js`, images are inlined as data URLs so the PDF is self-contained.
-- 🖼️ **Optional original images** — downloads original images referenced in the post and packs them together with the `.md` file into a ZIP. The Markdown links point to the local image paths. Images are stored directly (no double compression) when they are already in a compressed format (`png`/`jpg`/`webp`/`gif`/`avif`).
-- 🎨 **Code syntax highlighting** — language auto-detection (bash, python, javascript, typescript, go, rust, java, c/cpp, sql, json, html, css, ...) with a GitHub-dark style highlighter for both Markdown code blocks and PDF output.
-- 🧱 **Floor range selection** — export only the first post, the first 5/10/50 floors, all floors, or any custom range.
-- 🧩 **YAML frontmatter & metadata** — optional frontmatter block and post-meta header (title, URL, author, created date, tags).
-- 🚦 **Gentle rate limiting** — API and image requests are throttled with jitter, batch-gap, and concurrency caps. 429 responses are retried with exponential backoff up to a configurable limit.
-- 🎛️ **Floating draggable panel** — Apple-style translucent control panel that docks to either edge; remembers the side and vertical position during the session. Auto light/dark mode.
-- 🔌 **No build step** — single `.user.js` file; dependencies (`html2pdf.js`, `jszip`) are loaded lazily from the jsDelivr CDN.
+- **Export to Markdown** — converts forum HTML to clean Markdown (headings, lists, blockquotes, tables, code blocks, links, images, mentions, hashtags, quotes, oneboxes).
+- **Export to PDF** — renders Markdown → styled HTML → A4 PDF via `html2pdf.js`, images are inlined as data URLs so the PDF is self-contained.
+- **Optional original images** — downloads original images referenced in the post and packs them together with the `.md` file into a ZIP. The Markdown links point to the local image paths. Images are stored directly (no double compression) when they are already in a compressed format (`png`/`jpg`/`webp`/`gif`/`avif`).
+- **Code syntax highlighting** — language auto-detection (bash, python, javascript, typescript, go, rust, java, c/cpp, sql, json, html, css, ...) with a GitHub-dark style highlighter for both Markdown code blocks and PDF output.
+- **Floor range selection** — export only the first post, the first 5/10/50 floors, all floors, or any custom range.
+- **YAML frontmatter & metadata** — optional frontmatter block and post-meta header (title, URL, author, created date, tags).
+- **Gentle rate limiting** — API and image requests are throttled with jitter, batch-gap, and concurrency caps. 429 responses are retried with exponential backoff up to a configurable limit.
+- **Floating draggable panel** — Apple-style translucent control panel that docks to either edge; remembers the side and vertical position during the session. Auto light/dark mode.
+- **No build step** — single `.user.js` file; dependencies (`html2pdf.js`, `jszip`) are loaded lazily from the jsDelivr CDN.
 
-## 📦 Installation
+## Installation
 
 1. Install a userscript manager such as [Tampermonkey](https://www.tampermonkey.net/) (or Violentmonkey / Greasemonkey).
 2. Open `LDSaver.user.js` and click **Raw** (or drag the file into your browser's userscript manager), then approve the install.
@@ -39,7 +39,7 @@ The script `@require`s two libraries from jsDelivr; if your userscript manager h
 
 If `@require` injection is blocked, the script falls back to loading them lazily at runtime via a `<script>` tag.
 
-## 🚀 Usage
+## Usage
 
 1. Navigate to a linux.do topic, e.g. `https://linux.do/t/topic/123`.
 2. Click the handle on the screen edge to open the **导出工具 / Export** panel.
@@ -53,7 +53,7 @@ If `@require` injection is blocked, the script falls back to loading them lazily
 
 > The control panel can be dragged by its header; release it near the left or right edge to dock it on that side.
 
-## ⚙️ Rate-limiting configuration
+## Rate-limiting configuration
 
 The `RATE` constants at the top of the script control the politeness of network access:
 
@@ -72,7 +72,7 @@ The `RATE` constants at the top of the script control the politeness of network 
 
 Tune these if you hit rate limits (HTTP 429) frequently.
 
-## 🧰 API references used
+## API references used
 
 The script reads the standard Discourse topic endpoints on `linux.do`:
 
@@ -81,7 +81,7 @@ The script reads the standard Discourse topic endpoints on `linux.do`:
 
 Both are called with `credentials: include` so your existing forum login is used; no separate auth setup is needed.
 
-## 🔍 Supported HTML constructs
+## Supported HTML constructs
 
 The HTML-to-Markdown converter handles:
 
@@ -95,7 +95,7 @@ The HTML-to-Markdown converter handles:
 - `lightbox` originals, `<img>`, Discourse oneboxes (link previews)
 - Native emoji images are converted to their text form
 
-## 🛠️ Development
+## Development
 
 The whole script is a single self-contained IIFE — no bundler, no transpilation. To hack on it:
 
@@ -105,14 +105,14 @@ The whole script is a single self-contained IIFE — no bundler, no transpilatio
 
 A handful of internal helpers are exposed on `window.__ldExport` for debugging in the browser console: `htmlToMarkdown`, `convert`, `fetchPostsInRange`, `formatTopicMarkdown`, `getJSON`, `exportSingleTopic`, `exportCurrentTopicForPDF`, `markdownToPdf`, `mdToHtml`, `inlineMd`, `detectLang`, `highlight`, `createImageCollector`, `safeName`, `downloadBlob`, `RATE`.
 
-## ⚠️ Caveats
+## Caveats
 
 - PDF rendering runs entirely in your browser via `html2pdf.js` (jsPDF + html2canvas). Very long threads or many large images may take a while and use significant memory.
 - The script only triggers on `linux.do` (and `*.linux.do`); it does not run on other Discourse instances.
 - Defensive rate limiting means exporting a 1000-floor topic will take a while by design — prefer selecting a specific floor range.
 - Respect the forum's terms of use and the load you place on its servers.
 
-## 📄 License
+## License
 
 Provided as-is by the author `albert`. See the `@author` field in the userscript header.
 
@@ -126,19 +126,19 @@ Provided as-is by the author `albert`. See the `@author` field in the userscript
 
 > 版本：1.5.3 · 作者：albert · 命名空间：`https://linux.do/`
 
-## ✨ 功能特性
+## 功能特性
 
-- 📝 **导出 Markdown** — 将论坛 HTML 转换为干净的 Markdown（标题、列表、引用、表格、代码块、链接、图片、@提及、#标签、楼层引用、onebox 链接预览）。
-- 📄 **导出 PDF** — 通过 `html2pdf.js` 将 Markdown 渲染为带样式的 HTML 并输出为 A4 PDF，图片以内联 data URL 形式嵌入，PDF 可独立保存。
-- 🖼️ **可选原图打包** — 下载帖子中引用的原始图片，并将 `.md` 文件与图片一起打包成 ZIP；Markdown 中的图片链接指向本地路径。对已经是压缩格式（`png` / `jpg` / `webp` / `gif` / `avif`）的图片采用 STORE 直存，不再二次压缩。
-- 🎨 **代码语法高亮** — 自动识别语言（bash、python、javascript、typescript、go、rust、java、c/cpp、sql、json、html、css 等），为 Markdown 代码块和 PDF 输出都提供 GitHub 暗色风格高亮。
-- 🧱 **楼层范围选择** — 可选「仅主楼」「前 5 楼」「前 10 楼」「前 50 楼」「全部」，也可自定义楼宇范围。
-- 🧩 **YAML frontmatter 与元信息** — 可选在 Markdown 顶部输出 YAML frontmatter，以及帖子元信息（标题、URL、作者、发布时间、标签）。
-- 🚦 **温和限速** — API 与图片请求均带抖动地节流，并具备批次间隔与并发上限；遇 429 会用指数退避按可配次数重试。
-- 🎛️ **浮动可拖拽面板** — 苹果风半透明面板，可吸附到屏幕左/右边缘；会记住当前会话内的吸附侧和纵向位置。自动适配明暗模式。
-- 🔌 **零构建** — 单个 `.user.js` 文件；依赖（`html2pdf.js`、`jszip`）在运行时按需从 jsDelivr CDN 加载。
+- **导出 Markdown** — 将论坛 HTML 转换为干净的 Markdown（标题、列表、引用、表格、代码块、链接、图片、@提及、#标签、楼层引用、onebox 链接预览）。
+- **导出 PDF** — 通过 `html2pdf.js` 将 Markdown 渲染为带样式的 HTML 并输出为 A4 PDF，图片以内联 data URL 形式嵌入，PDF 可独立保存。
+- **可选原图打包** — 下载帖子中引用的原始图片，并将 `.md` 文件与图片一起打包成 ZIP；Markdown 中的图片链接指向本地路径。对已经是压缩格式（`png` / `jpg` / `webp` / `gif` / `avif`）的图片采用 STORE 直存，不再二次压缩。
+- **代码语法高亮** — 自动识别语言（bash、python、javascript、typescript、go、rust、java、c/cpp、sql、json、html、css 等），为 Markdown 代码块和 PDF 输出都提供 GitHub 暗色风格高亮。
+- **楼层范围选择** — 可选「仅主楼」「前 5 楼」「前 10 楼」「前 50 楼」「全部」，也可自定义楼宇范围。
+- **YAML frontmatter 与元信息** — 可选在 Markdown 顶部输出 YAML frontmatter，以及帖子元信息（标题、URL、作者、发布时间、标签）。
+- **温和限速** — API 与图片请求均带抖动地节流，并具备批次间隔与并发上限；遇 429 会用指数退避按可配次数重试。
+- **浮动可拖拽面板** — 苹果风半透明面板，可吸附到屏幕左/右边缘；会记住当前会话内的吸附侧和纵向位置。自动适配明暗模式。
+- **零构建** — 单个 `.user.js` 文件；依赖（`html2pdf.js`、`jszip`）在运行时按需从 jsDelivr CDN 加载。
 
-## 📦 安装
+## 安装
 
 1. 安装一个油猴脚本管理器，例如 [Tampermonkey](https://www.tampermonkey.net/)（或 Violentmonkey / Greasemonkey）。
 2. 打开 `LDSaver.user.js`，点击 **Raw**（或将该文件直接拖入浏览器中的脚本管理器），然后批准安装。
@@ -153,7 +153,7 @@ Provided as-is by the author `albert`. See the `@author` field in the userscript
 
 如果 `@require` 注入被拦截，脚本会在运行时通过 `<script>` 标签懒加载它们。
 
-## 🚀 使用方法
+## 使用方法
 
 1. 进入一个 linux.do 帖子页面，例如 `https://linux.do/t/topic/123`。
 2. 点击屏幕边缘的把手，打开 **导出工具** 面板。
@@ -167,7 +167,7 @@ Provided as-is by the author `albert`. See the `@author` field in the userscript
 
 > 面板可通过头部拖动；松手靠近左/右边缘即吸附到对应一侧。
 
-## ⚙️ 限速配置
+## 限速配置
 
 脚本顶部的 `RATE` 常量控制网络访问的礼貌程度：
 
@@ -186,7 +186,7 @@ Provided as-is by the author `albert`. See the `@author` field in the userscript
 
 如果频繁遇到 429 限流，可以适度上调相关参数。
 
-## 🧰 使用的接口
+## 使用的接口
 
 脚本读取 `linux.do` 上标准的 Discourse 帖子接口：
 
@@ -195,7 +195,7 @@ Provided as-is by the author `albert`. See the `@author` field in the userscript
 
 两者均使用 `credentials: include`，借助你已登录论坛的会话，无需额外认证配置。
 
-## 🔍 支持的 HTML 结构
+## 支持的 HTML 结构
 
 HTML → Markdown 转换器支持：
 
@@ -209,7 +209,7 @@ HTML → Markdown 转换器支持：
 - `lightbox` 原图、`<img>`、Discourse onebox（链接预览）
 - 原生 emoji 图片被转换为对应的文字形式
 
-## 🛠️ 开发
+## 开发
 
 整个脚本是一个自包含的 IIFE，无需打包器、无需转译。修改步骤：
 
@@ -219,13 +219,13 @@ HTML → Markdown 转换器支持：
 
 少量内部辅助函数被暴露在 `window.__ldExport` 上，便于在浏览器控制台中调试：`htmlToMarkdown`、`convert`、`fetchPostsInRange`、`formatTopicMarkdown`、`getJSON`、`exportSingleTopic`、`exportCurrentTopicForPDF`、`markdownToPdf`、`mdToHtml`、`inlineMd`、`detectLang`、`highlight`、`createImageCollector`、`safeName`、`downloadBlob`、`RATE`。
 
-## ⚠️ 注意事项
+## 注意事项
 
 - PDF 渲染完全在浏览器中通过 `html2pdf.js`（jsPDF + html2canvas）完成。超长帖或大量大图片时可能耗时较久且占用较多内存。
 - 脚本仅在 `linux.do`（及 `*.linux.do`）触发；不会在其他 Discourse 站点运行。
 - 限速是有意为之，因此导出 1000 楼的帖子会消耗相当时间 — 建议选择特定楼层范围。
 - 请遵守论坛的相关使用条款，并注意你对其服务器造成的负载。
 
-## 📄 许可证
+## 许可证
 
 由作者 `albert` 按现状提供。具体见脚本头部的 `@author` 字段。
