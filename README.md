@@ -96,6 +96,7 @@ Uses `credentials: "include"` (your forum session). No extra auth.
 
 - Only `linux.do` and `*.linux.do`.
 - Large floor ranges are intentionally slow; prefer a tight range.
+- Images are online links — if the forum CDN later drops them, exported MD loses those images. Mirror yourself for long-term archival.
 - Follow the forum ToS and avoid abusive load.
 
 ## License
@@ -175,6 +176,7 @@ As-is by `albert` (`@author` in the userscript header).
 
 - 仅 `linux.do` / `*.linux.do`。
 - 超大楼层范围会故意变慢，建议缩小范围。
+- 图片为在线链接 — 若论坛 CDN 日后下架对应文件，导出的 MD 会丢图；需长期存档请自行镜像。
 - 请遵守论坛条款，避免对服务器造成过大压力。
 
 ## 许可

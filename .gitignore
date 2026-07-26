@@ -7,6 +7,7 @@ Thumbs.db
 
 # Tooling scratch
 .playwright-mcp/
+.zcode/
 
 # Node (if added later)
 node_modules/
